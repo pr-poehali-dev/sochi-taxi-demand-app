@@ -4,6 +4,7 @@ import Icon from "@/components/ui/icon";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "map" | "notifications" | "flights" | "stats" | "profile";
 type DemandLevel = "high" | "mid" | "low" | "airport";
+type Tariff = "economy" | "comfort" | "comfort_plus" | "kids";
 
 interface Zone {
   id: string;
@@ -14,6 +15,12 @@ interface Zone {
   distKm: number;
   orders: number;
   profit: number;
+  // SVG map coords (viewBox 0 0 400 300)
+  cx: number;
+  cy: number;
+  r: number;
+  // tariff demand
+  tariffs: Record<Tariff, { orders: number; coef: number }>;
 }
 
 interface Flight {
@@ -37,12 +44,66 @@ interface Notification {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const ZONES: Zone[] = [
-  { id: "1", name: "Аэропорт Сочи", demand: "airport", coef: 2.4, waitMin: 2, distKm: 0, orders: 47, profit: 890 },
-  { id: "2", name: "Центр / Навагинская", demand: "high", coef: 1.9, waitMin: 3, distKm: 8, orders: 31, profit: 620 },
-  { id: "3", name: "Адлер — набережная", demand: "high", coef: 1.7, waitMin: 4, distKm: 4, orders: 28, profit: 540 },
-  { id: "4", name: "Роза Хутор", demand: "mid", coef: 1.4, waitMin: 7, distKm: 42, orders: 14, profit: 380 },
-  { id: "5", name: "Хоста / Кудепста", demand: "mid", coef: 1.2, waitMin: 9, distKm: 12, orders: 9, profit: 210 },
-  { id: "6", name: "Лазаревское", demand: "low", coef: 1.0, waitMin: 18, distKm: 65, orders: 4, profit: 95 },
+  {
+    id: "1", name: "Аэропорт Сочи", demand: "airport", coef: 2.4, waitMin: 2, distKm: 0, orders: 47, profit: 890,
+    cx: 112, cy: 218, r: 32,
+    tariffs: {
+      economy:      { orders: 18, coef: 2.4 },
+      comfort:      { orders: 15, coef: 2.6 },
+      comfort_plus: { orders: 10, coef: 2.8 },
+      kids:         { orders: 4,  coef: 2.1 },
+    },
+  },
+  {
+    id: "2", name: "Центр / Навагинская", demand: "high", coef: 1.9, waitMin: 3, distKm: 8, orders: 31, profit: 620,
+    cx: 230, cy: 118, r: 28,
+    tariffs: {
+      economy:      { orders: 14, coef: 1.9 },
+      comfort:      { orders: 9,  coef: 2.1 },
+      comfort_plus: { orders: 5,  coef: 2.3 },
+      kids:         { orders: 3,  coef: 1.7 },
+    },
+  },
+  {
+    id: "3", name: "Адлер — набережная", demand: "high", coef: 1.7, waitMin: 4, distKm: 4, orders: 28, profit: 540,
+    cx: 148, cy: 188, r: 24,
+    tariffs: {
+      economy:      { orders: 13, coef: 1.7 },
+      comfort:      { orders: 9,  coef: 1.9 },
+      comfort_plus: { orders: 4,  coef: 2.0 },
+      kids:         { orders: 2,  coef: 1.5 },
+    },
+  },
+  {
+    id: "4", name: "Роза Хутор", demand: "mid", coef: 1.4, waitMin: 7, distKm: 42, orders: 14, profit: 380,
+    cx: 310, cy: 72, r: 20,
+    tariffs: {
+      economy:      { orders: 4,  coef: 1.4 },
+      comfort:      { orders: 5,  coef: 1.6 },
+      comfort_plus: { orders: 4,  coef: 1.8 },
+      kids:         { orders: 1,  coef: 1.3 },
+    },
+  },
+  {
+    id: "5", name: "Хоста / Кудепста", demand: "mid", coef: 1.2, waitMin: 9, distKm: 12, orders: 9, profit: 210,
+    cx: 188, cy: 158, r: 18,
+    tariffs: {
+      economy:      { orders: 5,  coef: 1.2 },
+      comfort:      { orders: 3,  coef: 1.3 },
+      comfort_plus: { orders: 1,  coef: 1.4 },
+      kids:         { orders: 0,  coef: 1.0 },
+    },
+  },
+  {
+    id: "6", name: "Лазаревское", demand: "low", coef: 1.0, waitMin: 18, distKm: 65, orders: 4, profit: 95,
+    cx: 340, cy: 40, r: 16,
+    tariffs: {
+      economy:      { orders: 3,  coef: 1.0 },
+      comfort:      { orders: 1,  coef: 1.0 },
+      comfort_plus: { orders: 0,  coef: 1.0 },
+      kids:         { orders: 0,  coef: 1.0 },
+    },
+  },
 ];
 
 const FLIGHTS: Flight[] = [
@@ -125,92 +186,273 @@ function Stat({ label, value, icon, highlight }: { label: string; value: string;
   );
 }
 
+// ─── Tariff config ────────────────────────────────────────────────────────────
+const TARIFFS: { id: Tariff; label: string; icon: string; color: string }[] = [
+  { id: "economy",      label: "Эконом",    icon: "Car",       color: "text-green-400" },
+  { id: "comfort",      label: "Комфорт",   icon: "CarFront",  color: "text-blue-400" },
+  { id: "comfort_plus", label: "Комфорт+",  icon: "Star",      color: "text-yellow-400" },
+  { id: "kids",         label: "Детский",   icon: "Baby",      color: "text-pink-400" },
+];
+
+const tariffBg: Record<Tariff, string> = {
+  economy:      "bg-green-500/20 border-green-500/40",
+  comfort:      "bg-blue-500/20 border-blue-500/40",
+  comfort_plus: "bg-yellow-400/20 border-yellow-400/40",
+  kids:         "bg-pink-400/20 border-pink-400/40",
+};
+
+const demandFill: Record<DemandLevel, string> = {
+  high:    "#ef4444",
+  mid:     "#facc15",
+  low:     "#22c55e",
+  airport: "#3b82f6",
+};
+
 // ─── MAP TAB ─────────────────────────────────────────────────────────────────
 function MapTab() {
-  const [filter, setFilter] = useState<"all" | DemandLevel>("all");
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(ZONES[0]);
+  const [activeTariff, setActiveTariff] = useState<Tariff>("economy");
   const [sortBy, setSortBy] = useState<"profit" | "coef" | "wait">("profit");
 
-  const sorted = [...ZONES]
-    .filter((z) => filter === "all" || z.demand === filter)
-    .sort((a, b) => {
-      if (sortBy === "profit") return b.profit - a.profit;
-      if (sortBy === "coef") return b.coef - a.coef;
-      return a.waitMin - b.waitMin;
-    });
+  const sorted = [...ZONES].sort((a, b) => {
+    if (sortBy === "profit") return b.profit - a.profit;
+    if (sortBy === "coef") return b.coef - a.coef;
+    return a.waitMin - b.waitMin;
+  });
+
+  const best = ZONES[0];
 
   return (
-    <div className="flex flex-col gap-4 p-4 animate-fade-in">
-      {/* Live coef banner */}
-      <div className="rounded-2xl bg-primary/10 border border-primary/30 p-4 flex items-center justify-between glow-orange">
-        <div>
-          <p className="text-xs text-muted-foreground mb-0.5">Лучший коэф. прямо сейчас</p>
-          <p className="text-3xl font-black text-primary font-mono">×2.4</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Аэропорт Сочи • 47 заказов</p>
+    <div className="flex flex-col gap-4 animate-fade-in">
+
+      {/* ── SVG Map ─────────────────────────────────────────────── */}
+      <div className="relative mx-4 mt-4 rounded-2xl overflow-hidden border border-border bg-[#0d1117]">
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-background/80 backdrop-blur rounded-xl px-2.5 py-1.5">
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
+          <span className="text-[10px] font-semibold text-foreground">Карта спроса · Сочи</span>
         </div>
-        <button className="bg-primary text-primary-foreground font-bold rounded-xl px-5 py-3 text-sm active:scale-95 transition-transform">
+
+        <svg viewBox="0 0 400 270" className="w-full" xmlns="http://www.w3.org/2000/svg">
+          {/* Sea background */}
+          <rect width="400" height="270" fill="#0d1117" />
+
+          {/* Coastline — stylised shape of Sochi coastline */}
+          <path
+            d="M0,270 L0,200 C20,185 40,195 60,182 C80,170 95,175 112,168
+               C130,160 148,155 170,148 C190,142 210,135 235,125
+               C255,117 275,105 300,92 C320,82 340,68 360,55
+               C375,45 388,38 400,32 L400,270 Z"
+            fill="#0f2235" opacity="0.9"
+          />
+          {/* Sea shimmer */}
+          <path
+            d="M0,250 C60,240 120,248 180,242 C240,236 300,228 400,232 L400,270 L0,270 Z"
+            fill="#1a3a5c" opacity="0.4"
+          />
+
+          {/* Road lines */}
+          <path d="M60,182 C90,175 120,170 148,162 C170,155 195,148 230,135 C260,124 290,108 320,90 C345,76 370,60 400,44"
+            stroke="#1e3a52" strokeWidth="6" fill="none" strokeLinecap="round" />
+          <path d="M60,182 C90,175 120,170 148,162 C170,155 195,148 230,135 C260,124 290,108 320,90 C345,76 370,60 400,44"
+            stroke="#2d5a7a" strokeWidth="2" fill="none" strokeLinecap="round" strokeDasharray="8 6" />
+
+          {/* Zone blobs */}
+          {ZONES.map((zone) => {
+            const isSelected = selectedZone?.id === zone.id;
+            const fill = demandFill[zone.demand];
+            return (
+              <g key={zone.id} onClick={() => setSelectedZone(zone)} style={{ cursor: "pointer" }}>
+                {/* Glow ring */}
+                <circle
+                  cx={zone.cx} cy={zone.cy} r={zone.r + 8}
+                  fill={fill} opacity={isSelected ? 0.18 : 0.06}
+                />
+                {/* Main circle */}
+                <circle
+                  cx={zone.cx} cy={zone.cy} r={zone.r}
+                  fill={fill} opacity={isSelected ? 0.55 : 0.3}
+                  stroke={fill} strokeWidth={isSelected ? 2.5 : 1.5}
+                />
+                {/* Coef label */}
+                <text
+                  x={zone.cx} y={zone.cy - 2}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fontSize={zone.r > 22 ? "11" : "9"}
+                  fontWeight="700" fill="white" fontFamily="JetBrains Mono, monospace"
+                >
+                  ×{zone.coef}
+                </text>
+                <text
+                  x={zone.cx} y={zone.cy + 11}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fontSize="7" fill="rgba(255,255,255,0.7)" fontFamily="Golos Text, sans-serif"
+                >
+                  {zone.orders} зак.
+                </text>
+                {/* Selected pulse ring */}
+                {isSelected && (
+                  <circle
+                    cx={zone.cx} cy={zone.cy} r={zone.r + 14}
+                    fill="none" stroke={fill} strokeWidth="1.5" opacity="0.4"
+                    strokeDasharray="4 3"
+                  />
+                )}
+              </g>
+            );
+          })}
+
+          {/* Legend */}
+          {[
+            { color: "#3b82f6", label: "Аэропорт" },
+            { color: "#ef4444", label: "Высокий" },
+            { color: "#facc15", label: "Средний" },
+            { color: "#22c55e", label: "Низкий" },
+          ].map((l, i) => (
+            <g key={l.label} transform={`translate(${8}, ${i * 16 + 220})`}>
+              <circle cx="5" cy="5" r="4" fill={l.color} opacity="0.8" />
+              <text x="13" y="9" fontSize="8" fill="rgba(255,255,255,0.6)" fontFamily="Golos Text, sans-serif">
+                {l.label}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        {/* Selected zone mini popup */}
+        {selectedZone && (
+          <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur border border-border rounded-xl p-2.5 min-w-[120px]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`w-2 h-2 rounded-full inline-block ${demandDot[selectedZone.demand]}`} />
+              <span className="text-[10px] font-bold text-foreground truncate max-w-[100px]">{selectedZone.name}</span>
+            </div>
+            <p className="font-black text-lg text-primary font-mono leading-none">×{selectedZone.coef}</p>
+            <p className="text-[9px] text-muted-foreground">{selectedZone.orders} зак. • {selectedZone.waitMin} мин</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Tariff demand panel ──────────────────────────────────── */}
+      <div className="mx-4 bg-card border border-border rounded-2xl p-4">
+        <p className="font-bold text-sm text-foreground mb-3 flex items-center gap-2">
+          <Icon name="LayoutGrid" size={15} className="text-primary" fallback="Grid" />
+          Спрос по тарифам
+          {selectedZone && <span className="text-muted-foreground font-normal">· {selectedZone.name}</span>}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {TARIFFS.map((t) => {
+            const td = selectedZone ? selectedZone.tariffs[t.id] : { orders: 0, coef: 1.0 };
+            const isActive = activeTariff === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveTariff(t.id)}
+                className={`rounded-xl border p-3 text-left transition-all active:scale-[0.98] ${
+                  isActive ? tariffBg[t.id] : "bg-secondary border-border"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Icon name={t.icon} size={14} className={isActive ? t.color : "text-muted-foreground"} fallback="Car" />
+                  <span className={`text-xs font-semibold ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                    {t.label}
+                  </span>
+                </div>
+                <p className={`text-xl font-black font-mono ${isActive ? t.color : "text-foreground"}`}>
+                  ×{td.coef.toFixed(1)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{td.orders} заказов</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Best zone banner ─────────────────────────────────────── */}
+      <div className="mx-4 rounded-2xl bg-primary/10 border border-primary/30 p-4 flex items-center justify-between glow-orange">
+        <div>
+          <p className="text-xs text-muted-foreground mb-0.5">Лучшее место прямо сейчас</p>
+          <p className="text-2xl font-black text-primary font-mono">×{best.coef}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{best.name} • {best.orders} заказов</p>
+        </div>
+        <button
+          onClick={() => setSelectedZone(best)}
+          className="bg-primary text-primary-foreground font-bold rounded-xl px-5 py-3 text-sm active:scale-95 transition-transform"
+        >
           Еду туда
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {(["all", "airport", "high", "mid", "low"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold border transition-all ${
-              filter === f
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-secondary text-muted-foreground border-border"
-            }`}
-          >
-            {f === "all" ? "Все зоны" : demandLabel[f as DemandLevel]}
-          </button>
-        ))}
-        <div className="w-px bg-border shrink-0 mx-1" />
-        {(["profit", "coef", "wait"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setSortBy(s)}
-            className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold border transition-all ${
-              sortBy === s
-                ? "bg-secondary text-foreground border-primary/50"
-                : "bg-secondary text-muted-foreground border-border"
-            }`}
-          >
-            {s === "profit" ? "По прибыли" : s === "coef" ? "По коэф." : "По ожид."}
-          </button>
-        ))}
-      </div>
-
-      {/* Zone cards */}
-      <div className="flex flex-col gap-3">
-        {sorted.map((zone, i) => (
-          <div
-            key={zone.id}
-            className={`animate-fade-in rounded-2xl border p-4 ${demandClass[zone.demand]}`}
-            style={{ animationDelay: `${i * 0.06}s` }}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${demandDot[zone.demand]}`} />
-                <span className="font-bold text-sm text-foreground">{zone.name}</span>
-              </div>
-              <span className="text-2xl font-black font-mono text-foreground">×{zone.coef}</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Ожидание" value={`${zone.waitMin} мин`} icon="Clock" />
-              <Stat label="Заказы" value={String(zone.orders)} icon="ShoppingBag" />
-              <Stat label="~Выручка" value={`${zone.profit} ₽`} icon="Banknote" highlight />
-            </div>
-            {zone.distKm > 0 && (
-              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                <Icon name="Navigation" size={11} fallback="Circle" />
-                {zone.distKm} км от аэропорта
-              </p>
-            )}
+      {/* ── Zone list ────────────────────────────────────────────── */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-bold text-sm text-foreground">Все зоны</p>
+          <div className="flex gap-1">
+            {(["profit", "coef", "wait"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSortBy(s)}
+                className={`rounded-lg px-2.5 py-1 text-[10px] font-semibold border transition-all ${
+                  sortBy === s
+                    ? "bg-primary/10 border-primary/40 text-primary"
+                    : "bg-secondary border-border text-muted-foreground"
+                }`}
+              >
+                {s === "profit" ? "Прибыль" : s === "coef" ? "Коэф." : "Ожид."}
+              </button>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          {sorted.map((zone, i) => {
+            const td = zone.tariffs[activeTariff];
+            const isSelected = selectedZone?.id === zone.id;
+            return (
+              <div
+                key={zone.id}
+                onClick={() => setSelectedZone(zone)}
+                className={`animate-fade-in rounded-2xl border p-3 cursor-pointer active:scale-[0.99] transition-all ${
+                  isSelected
+                    ? `${demandClass[zone.demand]} ring-1 ring-primary/30`
+                    : "bg-card border-border"
+                }`}
+                style={{ animationDelay: `${i * 0.05}s` }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`shrink-0 inline-block w-2 h-2 rounded-full ${demandDot[zone.demand]}`} />
+                    <span className="font-semibold text-sm text-foreground truncate">{zone.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground">{TARIFFS.find(t => t.id === activeTariff)?.label}</p>
+                      <p className={`text-sm font-black font-mono ${TARIFFS.find(t => t.id === activeTariff)?.color}`}>
+                        ×{td.coef.toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground">Общий</p>
+                      <p className="text-sm font-black font-mono text-foreground">×{zone.coef}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-0.5">
+                    <Icon name="Clock" size={9} fallback="Circle" /> {zone.waitMin} мин
+                  </span>
+                  <span className="flex items-center gap-0.5">
+                    <Icon name="ShoppingBag" size={9} fallback="Circle" /> {zone.orders} зак.
+                  </span>
+                  <span className="flex items-center gap-0.5 text-primary font-semibold">
+                    <Icon name="Banknote" size={9} fallback="Circle" /> ~{zone.profit} ₽/ч
+                  </span>
+                  {zone.distKm > 0 && (
+                    <span className="flex items-center gap-0.5 ml-auto">
+                      <Icon name="Navigation" size={9} fallback="Circle" /> {zone.distKm} км
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
