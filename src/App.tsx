@@ -817,7 +817,7 @@ const NAV: { id: Tab; label: string; icon: string }[] = [
 ];
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
-export default function App() {
+export function DriveProApp() {
   const [tab, setTab] = useState<Tab>("map");
   const unread = NOTIFICATIONS_INIT.filter((n) => !n.read).length;
 
@@ -875,3 +875,5 @@ export default function App() {
     </div>
   );
 }
+
+export default DriveProApp;
