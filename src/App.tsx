@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
+import YandexMap from "@/components/YandexMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "map" | "notifications" | "flights" | "stats" | "profile";
@@ -19,6 +20,9 @@ interface Zone {
   cx: number;
   cy: number;
   r: number;
+  // real map
+  center: [number, number]; // [lat, lng]
+  radiusM: number;
   // tariff demand
   tariffs: Record<Tariff, { orders: number; coef: number }>;
 }
@@ -47,6 +51,7 @@ const ZONES: Zone[] = [
   {
     id: "1", name: "Аэропорт Сочи", demand: "airport", coef: 2.4, waitMin: 2, distKm: 0, orders: 47, profit: 890,
     cx: 112, cy: 218, r: 32,
+    center: [43.4488, 39.9430], radiusM: 900,
     tariffs: {
       economy:      { orders: 18, coef: 2.4 },
       comfort:      { orders: 15, coef: 2.6 },
@@ -57,6 +62,7 @@ const ZONES: Zone[] = [
   {
     id: "2", name: "Центр / Навагинская", demand: "high", coef: 1.9, waitMin: 3, distKm: 8, orders: 31, profit: 620,
     cx: 230, cy: 118, r: 28,
+    center: [43.5855, 39.7202], radiusM: 800,
     tariffs: {
       economy:      { orders: 14, coef: 1.9 },
       comfort:      { orders: 9,  coef: 2.1 },
@@ -67,6 +73,7 @@ const ZONES: Zone[] = [
   {
     id: "3", name: "Адлер — набережная", demand: "high", coef: 1.7, waitMin: 4, distKm: 4, orders: 28, profit: 540,
     cx: 148, cy: 188, r: 24,
+    center: [43.4650, 39.9200], radiusM: 650,
     tariffs: {
       economy:      { orders: 13, coef: 1.7 },
       comfort:      { orders: 9,  coef: 1.9 },
@@ -77,6 +84,7 @@ const ZONES: Zone[] = [
   {
     id: "4", name: "Роза Хутор", demand: "mid", coef: 1.4, waitMin: 7, distKm: 42, orders: 14, profit: 380,
     cx: 310, cy: 72, r: 20,
+    center: [43.6900, 40.2900], radiusM: 600,
     tariffs: {
       economy:      { orders: 4,  coef: 1.4 },
       comfort:      { orders: 5,  coef: 1.6 },
@@ -87,6 +95,7 @@ const ZONES: Zone[] = [
   {
     id: "5", name: "Хоста / Кудепста", demand: "mid", coef: 1.2, waitMin: 9, distKm: 12, orders: 9, profit: 210,
     cx: 188, cy: 158, r: 18,
+    center: [43.5200, 39.8800], radiusM: 500,
     tariffs: {
       economy:      { orders: 5,  coef: 1.2 },
       comfort:      { orders: 3,  coef: 1.3 },
@@ -97,6 +106,7 @@ const ZONES: Zone[] = [
   {
     id: "6", name: "Лазаревское", demand: "low", coef: 1.0, waitMin: 18, distKm: 65, orders: 4, profit: 95,
     cx: 340, cy: 40, r: 16,
+    center: [43.9050, 39.3450], radiusM: 700,
     tariffs: {
       economy:      { orders: 3,  coef: 1.0 },
       comfort:      { orders: 1,  coef: 1.0 },
@@ -225,104 +235,53 @@ function MapTab() {
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
 
-      {/* ── SVG Map ─────────────────────────────────────────────── */}
-      <div className="relative mx-4 mt-4 rounded-2xl overflow-hidden border border-border bg-[#0d1117]">
-        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-background/80 backdrop-blur rounded-xl px-2.5 py-1.5">
+      {/* ── Yandex Map ───────────────────────────────────────────── */}
+      <div className="relative mx-4 mt-4 rounded-2xl overflow-hidden border border-border">
+        {/* Status badge */}
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-background/85 backdrop-blur rounded-xl px-2.5 py-1.5 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
           <span className="text-[10px] font-semibold text-foreground">Карта спроса · Сочи</span>
         </div>
 
-        <svg viewBox="0 0 400 270" className="w-full" xmlns="http://www.w3.org/2000/svg">
-          {/* Sea background */}
-          <rect width="400" height="270" fill="#0d1117" />
-
-          {/* Coastline — stylised shape of Sochi coastline */}
-          <path
-            d="M0,270 L0,200 C20,185 40,195 60,182 C80,170 95,175 112,168
-               C130,160 148,155 170,148 C190,142 210,135 235,125
-               C255,117 275,105 300,92 C320,82 340,68 360,55
-               C375,45 388,38 400,32 L400,270 Z"
-            fill="#0f2235" opacity="0.9"
-          />
-          {/* Sea shimmer */}
-          <path
-            d="M0,250 C60,240 120,248 180,242 C240,236 300,228 400,232 L400,270 L0,270 Z"
-            fill="#1a3a5c" opacity="0.4"
-          />
-
-          {/* Road lines */}
-          <path d="M60,182 C90,175 120,170 148,162 C170,155 195,148 230,135 C260,124 290,108 320,90 C345,76 370,60 400,44"
-            stroke="#1e3a52" strokeWidth="6" fill="none" strokeLinecap="round" />
-          <path d="M60,182 C90,175 120,170 148,162 C170,155 195,148 230,135 C260,124 290,108 320,90 C345,76 370,60 400,44"
-            stroke="#2d5a7a" strokeWidth="2" fill="none" strokeLinecap="round" strokeDasharray="8 6" />
-
-          {/* Zone blobs */}
-          {ZONES.map((zone) => {
-            const isSelected = selectedZone?.id === zone.id;
-            const fill = demandFill[zone.demand];
-            return (
-              <g key={zone.id} onClick={() => setSelectedZone(zone)} style={{ cursor: "pointer" }}>
-                {/* Glow ring */}
-                <circle
-                  cx={zone.cx} cy={zone.cy} r={zone.r + 8}
-                  fill={fill} opacity={isSelected ? 0.18 : 0.06}
-                />
-                {/* Main circle */}
-                <circle
-                  cx={zone.cx} cy={zone.cy} r={zone.r}
-                  fill={fill} opacity={isSelected ? 0.55 : 0.3}
-                  stroke={fill} strokeWidth={isSelected ? 2.5 : 1.5}
-                />
-                {/* Coef label */}
-                <text
-                  x={zone.cx} y={zone.cy - 2}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize={zone.r > 22 ? "11" : "9"}
-                  fontWeight="700" fill="white" fontFamily="JetBrains Mono, monospace"
-                >
-                  ×{zone.coef}
-                </text>
-                <text
-                  x={zone.cx} y={zone.cy + 11}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize="7" fill="rgba(255,255,255,0.7)" fontFamily="Golos Text, sans-serif"
-                >
-                  {zone.orders} зак.
-                </text>
-                {/* Selected pulse ring */}
-                {isSelected && (
-                  <circle
-                    cx={zone.cx} cy={zone.cy} r={zone.r + 14}
-                    fill="none" stroke={fill} strokeWidth="1.5" opacity="0.4"
-                    strokeDasharray="4 3"
-                  />
-                )}
-              </g>
-            );
-          })}
-
-          {/* Legend */}
+        {/* Legend */}
+        <div className="absolute top-2 right-2 z-10 bg-background/85 backdrop-blur rounded-xl px-2.5 py-2 pointer-events-none flex flex-col gap-1">
           {[
-            { color: "#3b82f6", label: "Аэропорт" },
-            { color: "#ef4444", label: "Высокий" },
-            { color: "#facc15", label: "Средний" },
-            { color: "#22c55e", label: "Низкий" },
-          ].map((l, i) => (
-            <g key={l.label} transform={`translate(${8}, ${i * 16 + 220})`}>
-              <circle cx="5" cy="5" r="4" fill={l.color} opacity="0.8" />
-              <text x="13" y="9" fontSize="8" fill="rgba(255,255,255,0.6)" fontFamily="Golos Text, sans-serif">
-                {l.label}
-              </text>
-            </g>
+            { color: "bg-blue-500", label: "Аэропорт" },
+            { color: "bg-red-500",  label: "Высокий" },
+            { color: "bg-yellow-400", label: "Средний" },
+            { color: "bg-green-500", label: "Низкий" },
+          ].map((l) => (
+            <div key={l.label} className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full inline-block ${l.color}`} />
+              <span className="text-[9px] text-muted-foreground">{l.label}</span>
+            </div>
           ))}
-        </svg>
+        </div>
 
-        {/* Selected zone mini popup */}
+        <YandexMap
+          zones={ZONES.map((z) => ({
+            id: z.id,
+            name: z.name,
+            demand: z.demand,
+            coef: z.coef,
+            orders: z.orders,
+            waitMin: z.waitMin,
+            center: z.center,
+            radiusM: z.radiusM,
+          }))}
+          selectedId={selectedZone?.id ?? null}
+          onSelect={(id) => {
+            const zone = ZONES.find((z) => z.id === id);
+            if (zone) setSelectedZone(zone);
+          }}
+        />
+
+        {/* Selected zone popup */}
         {selectedZone && (
-          <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur border border-border rounded-xl p-2.5 min-w-[120px]">
+          <div className="absolute bottom-3 left-3 z-10 bg-background/90 backdrop-blur border border-border rounded-xl p-2.5 min-w-[130px]">
             <div className="flex items-center gap-1.5 mb-1">
               <span className={`w-2 h-2 rounded-full inline-block ${demandDot[selectedZone.demand]}`} />
-              <span className="text-[10px] font-bold text-foreground truncate max-w-[100px]">{selectedZone.name}</span>
+              <span className="text-[10px] font-bold text-foreground truncate max-w-[110px]">{selectedZone.name}</span>
             </div>
             <p className="font-black text-lg text-primary font-mono leading-none">×{selectedZone.coef}</p>
             <p className="text-[9px] text-muted-foreground">{selectedZone.orders} зак. • {selectedZone.waitMin} мин</p>
