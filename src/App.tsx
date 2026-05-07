@@ -236,7 +236,7 @@ function MapTab() {
     <div className="flex flex-col gap-4 animate-fade-in">
 
       {/* ── Yandex Map ───────────────────────────────────────────── */}
-      <div className="relative mx-4 mt-4 rounded-2xl overflow-hidden border border-border">
+      <div className="relative mx-4 mt-4 rounded-2xl border border-border" style={{ overflow: "hidden" }}>
         {/* Status badge */}
         <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-background/85 backdrop-blur rounded-xl px-2.5 py-1.5 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
